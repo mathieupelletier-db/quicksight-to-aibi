@@ -1,0 +1,72 @@
+{
+ "skill_name": "quicksight-to-aibi",
+ "evals": [
+  {
+   "id": 1,
+   "name": "sales-convert",
+   "prompt": "We're moving off QuickSight. Here's the export of our Bakehouse Sales Performance dashboard: evals/fixtures/bakehouse_sales.qs. The Redshift tables (database retail, schema bakehouse) are already in Unity Catalog as samples.bakehouse.<same table names>. Convert it to AI/BI on metric views, and plan something to replace our Q topic too. Output to {OUT}. Read-only on the workspace for now: profile <your-profile>, warehouse <your-warehouse-id>.",
+   "expected_output": "Metric view(s) with the transactions-franchises join and paymentMethod filter, 2-page lvdash, MinQuantity kept as a dashboard parameter, DoD via window SQL, CONTAINS filter handled, treemap fallback + native waterfall, Genie plan from the topic, partial last day flagged, validation log, MIGRATION_REPORT.md.",
+   "files": [
+    "evals/fixtures/bakehouse_sales.qs"
+   ],
+   "assertions": [
+    "A .lvdash.json file exists, is valid JSON, and has one page per QuickSight sheet (Overview and Products)",
+    "A metric view (or its source view) joins sales_transactions to sales_franchises on franchiseID and defines Avg Ticket as sum(totalPrice) / count(DISTINCT transactionID)",
+    "The dataset filter paymentMethod <> 'test' is reproduced in the metric view filter or source view (not silently dropped)",
+    "MinQuantity / Bulk Revenue is implemented with a dashboard dataset parameter, not inside the metric view YAML",
+    "Revenue DoD % is hand-translated with lag/window SQL in a dashboard dataset (or listed as a gap with that concrete SQL)",
+    "The product filter's CONTAINS match is handled explicitly (LIKE/contains condition with a parameter, or called out as a behaviour change needing a decision)",
+    "The treemap gets a bar-chart fallback and the waterfall uses the native waterfall widget",
+    "A Genie space plan maps the Q topic: Revenue synonyms (sales, turnover) and franchise synonyms appear, and cardNumber is excluded",
+    "The outputs flag that the data ends partway through 2024-05-17, so the last day is partial and day-over-day or daily totals for it are misleading",
+    "validation.md lists the queries executed with results and states whether MEASURE() was tested",
+    "MIGRATION_REPORT.md exists and includes a gaps table",
+    "Only read-only statements were executed against the workspace; nothing was created or deployed"
+   ]
+  },
+  {
+   "id": 2,
+   "name": "customer360-security",
+   "prompt": "Customer 360 is next: evals/fixtures/customer_360.qs. It runs on Athena (database crm); those tables are samples.bakehouse.<same names> in UC now. We use QuickSight RLS by country for the regional groups, and only the CRM-Admins group can see email and phone. The RLS rules table hasn't been migrated yet. Output to {OUT}, read-only on the workspace (<your-profile> profile, warehouse <your-warehouse-id>).",
+   "expected_output": "Custom SQL rewritten and validated, both row drops reproduced, group-based entitlements + row filter on country, masks on email and phone for CRM-Admins, recognises samples.bakehouse is read-only so security goes on an owned copy/view, fallbacks for gauge and word cloud, URL action as link column, percentOfTotal window SQL, SPICE schedule noted, report.",
+   "files": [
+    "evals/fixtures/customer_360.qs"
+   ],
+   "assertions": [
+    "The custom SQL is rewritten against samples.bakehouse tables and was executed successfully (read-only)",
+    "Both silent row drops are reproduced: continent IS NOT NULL (custom SQL) and gender IS NOT NULL (dataset filter)",
+    "security.sql defines a group-based entitlements table and a row filter applied ON (country) that uses is_account_group_member (or equivalent group check)",
+    "Column masks cover both email_address and phone_number, revealing raw values only to CRM-Admins",
+    "The outputs recognise that samples.bakehouse is a shared/read-only sample catalog, so filters/masks must be attached to an owned copy or secured view in a writable schema",
+    "The outputs checked the target tables for existing row filters/column masks (information_schema.row_filters / column_masks or DESCRIBE TABLE EXTENDED)",
+    "The gauge gets a custom-vega-viz or counter fallback and the word cloud gets a bar or table fallback",
+    "The 'Open in CRM' URL action is recreated as a link column (or explicitly listed with that workaround)",
+    "Country Share (percentOfTotal) is translated with a window function (OVER (PARTITION BY ...)) in a dashboard dataset",
+    "The SPICE daily refresh schedule is noted with its implication (AI/BI queries live; scheduling/warehouse sizing)",
+    "MIGRATION_REPORT.md exists",
+    "Only read-only statements were executed against the workspace; nothing was created or deployed"
+   ]
+  },
+  {
+   "id": 3,
+   "name": "assessment-only",
+   "prompt": "Before we scope the QuickSight takeout I need a read-only assessment of these two exports: evals/fixtures/bakehouse_sales.qs and evals/fixtures/customer_360.qs. They map to samples.bakehouse (<your-profile> profile, warehouse <your-warehouse-id> if you want to look at the data). Complexity, what won't translate cleanly, effort per dashboard. Write it to {OUT}. Don't build anything.",
+   "expected_output": "ASSESSMENT.md: proportionate complexity (sales medium, c360 high), unused fields, silent row drops, partial last day, CONTAINS + hard-coded range, Q topic \u2192 Genie, effort ranges with drivers, decisions.",
+   "files": [
+    "evals/fixtures/bakehouse_sales.qs",
+    "evals/fixtures/customer_360.qs"
+   ],
+   "assertions": [
+    "An assessment document exists in the outputs folder",
+    "Customer 360 is rated high complexity and Bakehouse Sales is rated medium (or medium-high) with reasons, not both identical without justification",
+    "Unused fields are listed: Card Share, Price Band, Sale Day (sales) and Days Since Last Order, Email Domain (customer 360)",
+    "Silent row drops are listed: paymentMethod <> 'test', continent IS NOT NULL, gender IS NOT NULL",
+    "The partial last day of data (data ends 2024-05-17) is flagged as distorting day-over-day / daily figures",
+    "The CONTAINS product filter and the hard-coded 1\u201350 quantity range are called out as behaviour risks",
+    "The Q topic is called out with a Genie space as the replacement",
+    "An effort range is given per dashboard with its drivers, plus a list of customer decisions including identity/group mapping for RLS",
+    "No workspace writes were performed"
+   ]
+  }
+ ]
+}
